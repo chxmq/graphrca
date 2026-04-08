@@ -11,14 +11,13 @@ Environment variables required:
 
 Log format (strict — do not deviate):
   [START] task=<task_id> env=graph-rca-pipeline-diagnoser model=<model>
-  [STEP]  step=<n> action=<str> reward=<float> done=<bool> error=<str|None>
-  [END]   success=<bool> steps=<n> score=<float> rewards=<list>
+  [STEP]  step=<n> action=<str> reward=<0.00> done=<true|false> error=<msg|null>
+  [END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...,rn>
 
 Usage:
   API_BASE_URL=https://api.openai.com/v1 MODEL_NAME=gpt-4o-mini HF_TOKEN=sk-... python inference.py
 """
 
-import asyncio
 import json
 import os
 import sys
@@ -34,7 +33,8 @@ from openai import OpenAI
 
 API_BASE_URL: str = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME: str = os.environ.get("MODEL_NAME", "gpt-4o-mini")
-API_KEY: str = os.environ.get("HF_TOKEN", os.environ.get("OPENAI_API_KEY", "dummy"))
+HF_TOKEN: Optional[str] = os.environ.get("HF_TOKEN")
+API_KEY: str = HF_TOKEN or ""  # validated at runtime in main()
 
 ENV_BASE_URL: str = os.environ.get("ENV_BASE_URL", "http://localhost:7860")
 BENCHMARK: str = "graph-rca-pipeline-diagnoser"
@@ -61,15 +61,19 @@ def log_start(task: str, env: str, model: str) -> None:
 
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    done_str = "true" if done else "false"
+    error_str = "null" if error is None else error
     print(
-        f"[STEP]  step={step} action={action!r} reward={reward:.4f} done={done} error={error}",
+        f"[STEP]  step={step} action={action} reward={reward:.2f} done={done_str} error={error_str}",
         flush=True,
     )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    success_str = "true" if success else "false"
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={success} steps={steps} score={score:.4f} rewards={rewards}",
+        f"[END]   success={success_str} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True,
     )
 
@@ -334,6 +338,9 @@ def run_task(
 
 
 def main() -> None:
+    if not HF_TOKEN:
+        raise ValueError("HF_TOKEN environment variable is required")
+
     print(f"[DEBUG] Starting inference | model={MODEL_NAME} | env={ENV_BASE_URL}", flush=True)
 
     # Initialize LLM client
