@@ -39,7 +39,7 @@ API_KEY: str = HF_TOKEN or ""  # validated at runtime in main()
 ENV_BASE_URL: str = os.environ.get("ENV_BASE_URL", "http://localhost:7860")
 BENCHMARK: str = "graph-rca-pipeline-diagnoser"
 
-TEMPERATURE: float = 0.2
+TEMPERATURE: float = 0.0  # deterministic for reproducibility
 MAX_TOKENS: int = 512
 
 # Task configs
@@ -217,10 +217,10 @@ def get_model_action(
         return action
 
     except json.JSONDecodeError:
-        print(f"[DEBUG] Failed to parse JSON from model response: {text[:200]}", flush=True)
+        print(f"[DEBUG] Failed to parse JSON from model response: {text[:200]}", file=sys.stderr, flush=True)
         return {"action_type": "list_nodes"}
     except Exception as exc:
-        print(f"[DEBUG] Model request failed: {exc}", flush=True)
+        print(f"[DEBUG] Model request failed: {exc}", file=sys.stderr, flush=True)
         return {"action_type": "list_nodes"}
 
 
@@ -293,7 +293,7 @@ def run_task(
                 error = str(e)
                 reward = 0.0
                 done = False
-                print(f"[DEBUG] Step failed: {e}", flush=True)
+                print(f"[DEBUG] Step failed: {e}", file=sys.stderr, flush=True)
 
             rewards.append(reward)
             steps_taken = step
@@ -318,7 +318,7 @@ def run_task(
         success = score >= SUCCESS_SCORE_THRESHOLD
 
     except Exception as e:
-        print(f"[DEBUG] Task {task_id} failed: {e}", flush=True)
+        print(f"[DEBUG] Task {task_id} failed: {e}", file=sys.stderr, flush=True)
         error = str(e)
 
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
@@ -341,7 +341,7 @@ def main() -> None:
     if not HF_TOKEN:
         raise ValueError("HF_TOKEN environment variable is required")
 
-    print(f"[DEBUG] Starting inference | model={MODEL_NAME} | env={ENV_BASE_URL}", flush=True)
+    print(f"[DEBUG] Starting inference | model={MODEL_NAME} | env={ENV_BASE_URL}", file=sys.stderr, flush=True)
 
     # Initialize LLM client
     llm_client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
@@ -353,10 +353,10 @@ def main() -> None:
     try:
         resp = http_client.get("/health", timeout=10)
         resp.raise_for_status()
-        print(f"[DEBUG] Environment health check passed: {resp.json()}", flush=True)
+        print(f"[DEBUG] Environment health check passed: {resp.json()}", file=sys.stderr, flush=True)
     except Exception as e:
-        print(f"[DEBUG] Environment health check failed: {e}", flush=True)
-        print(f"[DEBUG] Make sure the environment is running at {ENV_BASE_URL}", flush=True)
+        print(f"[DEBUG] Environment health check failed: {e}", file=sys.stderr, flush=True)
+        print(f"[DEBUG] Make sure the environment is running at {ENV_BASE_URL}", file=sys.stderr, flush=True)
         sys.exit(1)
 
     # Run all tasks
@@ -364,29 +364,21 @@ def main() -> None:
     start_time = time.time()
 
     for task_config in TASKS:
-        print(f"\n[DEBUG] Starting task: {task_config['task_id']}", flush=True)
+        print(f"[DEBUG] Starting task: {task_config['task_id']}", file=sys.stderr, flush=True)
         result = run_task(llm_client, http_client, task_config)
         all_results.append(result)
 
         elapsed = time.time() - start_time
-        print(f"[DEBUG] Task complete in {elapsed:.1f}s | score={result['score']:.4f}", flush=True)
+        print(f"[DEBUG] Task complete in {elapsed:.1f}s | score={result['score']:.4f}", file=sys.stderr, flush=True)
 
         # Safety: abort if total time exceeds 18 minutes (leave 2 min buffer)
         if elapsed > 18 * 60:
-            print("[DEBUG] Time limit approaching — stopping early", flush=True)
+            print("[DEBUG] Time limit approaching — stopping early", file=sys.stderr, flush=True)
             break
 
-    # Summary
-    print("\n" + "=" * 60, flush=True)
-    print("FINAL RESULTS", flush=True)
-    print("=" * 60, flush=True)
-    for r in all_results:
-        status = "PASS" if r["success"] else "FAIL"
-        print(f"  [{status}] {r['task_id']}: score={r['score']:.4f} steps={r['steps']}", flush=True)
-
+    # Summary goes to stderr — stdout must contain only [START]/[STEP]/[END]
     mean_score = sum(r["score"] for r in all_results) / len(all_results) if all_results else 0.0
-    print(f"\nMean score across all tasks: {mean_score:.4f}", flush=True)
-    print("=" * 60, flush=True)
+    print(f"[DEBUG] Mean score: {mean_score:.4f}", file=sys.stderr, flush=True)
 
     http_client.close()
 

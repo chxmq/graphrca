@@ -104,45 +104,62 @@ Scores are always in **[0.0, 1.0]**.
 - **Scenario**: Misconfiguration caused services to over-reserve CPU/RAM, blocking deployments
 - **Max steps**: 10
 - **Root cause**: 1 node (directly visible in CRITICAL logs)
-- **Expected score**: ~0.82
+- **Expected score**: ~0.84
 
 ### Task 2: `cascading_failure` (Medium)
 - **Source**: Cloudflare WAF outage (2019-07-02)
 - **Scenario**: WAF regex with catastrophic backtracking caused CPU exhaustion across edge routers
 - **Max steps**: 15
 - **Root cause**: 1 node (upstream of visible failures)
-- **Expected score**: ~0.65
+- **Expected score**: ~0.93
 
 ### Task 3: `simultaneous_failures` (Hard)
 - **Source**: Cloudflare BGP incident (2020-07-17)
 - **Scenario**: BGP config typo + alert suppression — two simultaneous silent failures
 - **Max steps**: 20
 - **Root cause**: 2 nodes (one active failure, one monitoring blind spot)
-- **Expected score**: ~0.41
+- **Expected score**: ~0.35
 
 ---
 
 ## Baseline Scores
 
-| Task | Score | Steps Used |
-|------|-------|-----------|
-| single_point_failure (easy) | 0.84 | 1 |
-| cascading_failure (medium) | 0.93 | 3 |
-| simultaneous_failures (hard) | 0.35 | 4 |
-| **Mean** | **0.71** | — |
+Measured with `gpt-4o-mini`, `temperature=0`, reproducible across runs.
+
+| Task | Difficulty | Score | Steps Used |
+|------|------------|-------|-----------|
+| single_point_failure | easy | 0.84 | ≤5 |
+| cascading_failure | medium | 0.93 | ≤8 |
+| simultaneous_failures | hard | 0.35 | ≤12 |
+| **Mean** | — | **0.71** | — |
 
 ---
 
 ## Setup & Usage
 
-### Local Development
+### 1. Configure environment variables
+
+```bash
+cp .env.example .env
+# Fill in HF_TOKEN and optionally API_BASE_URL / MODEL_NAME
+```
+
+### 2. Run locally
 
 ```bash
 pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 7860
+```
 
-# Run baseline agent
-API_BASE_URL=https://api.openai.com/v1 MODEL_NAME=gpt-4o-mini HF_TOKEN=sk-... python inference.py
+### 3. Run baseline inference
+
+```bash
+# Canonical submission command
+API_BASE_URL=https://api.openai.com/v1 \
+MODEL_NAME=gpt-4o-mini \
+HF_TOKEN=your-key-here \
+ENV_BASE_URL=http://localhost:7860 \
+python inference.py
 ```
 
 ### Docker
@@ -151,6 +168,7 @@ API_BASE_URL=https://api.openai.com/v1 MODEL_NAME=gpt-4o-mini HF_TOKEN=sk-... py
 docker build -t graph-rca-env .
 docker run -p 7860:7860 graph-rca-env
 curl http://localhost:7860/health
+curl -X POST http://localhost:7860/reset -H "Content-Type: application/json" -d '{"task_id": "single_point_failure"}'
 ```
 
 ### API Examples
