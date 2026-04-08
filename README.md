@@ -1,21 +1,10 @@
----
-title: Graph RCA Pipeline Diagnoser
-emoji: 🔍
-colorFrom: red
-colorTo: blue
-sdk: docker
-pinned: false
-tags:
-  - openenv
-  - data-engineering
-  - root-cause-analysis
----
-
 # Graph-RCA Pipeline Diagnoser
 
 An OpenEnv reinforcement learning environment where an AI agent diagnoses root causes in failing production data pipelines by traversing a DAG, inspecting logs, and identifying what broke and why.
 
 **Built on 200 real annotated production incidents** from Cloudflare, AWS, GitHub, Google, Allegro, Railway, and more.
+
+**Live Demo:** https://huggingface.co/spaces/chxmq/graph-rca-pipeline-diagnoser
 
 ---
 
@@ -104,25 +93,27 @@ Scores are always in **[0.0, 1.0]**.
 - **Scenario**: Misconfiguration caused services to over-reserve CPU/RAM, blocking deployments
 - **Max steps**: 10
 - **Root cause**: 1 node (directly visible in CRITICAL logs)
-- **Expected score**: ~0.82
+- **Expected score**: ~0.66
 
 ### Task 2: `cascading_failure` (Medium)
 - **Source**: Cloudflare WAF outage (2019-07-02)
 - **Scenario**: WAF regex with catastrophic backtracking caused CPU exhaustion across edge routers
 - **Max steps**: 15
 - **Root cause**: 1 node (upstream of visible failures)
-- **Expected score**: ~0.65
+- **Expected score**: ~0.93
 
 ### Task 3: `simultaneous_failures` (Hard)
 - **Source**: Cloudflare BGP incident (2020-07-17)
 - **Scenario**: BGP config typo + alert suppression — two simultaneous silent failures
 - **Max steps**: 20
 - **Root cause**: 2 nodes (one active failure, one monitoring blind spot)
-- **Expected score**: ~0.41
+- **Expected score**: ~0.35
 
 ---
 
 ## Baseline Scores
+
+Tested with `gpt-4o-mini`:
 
 | Task | Score | Steps Used |
 |------|-------|-----------|
@@ -142,7 +133,11 @@ pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 7860
 
 # Run baseline agent
-API_BASE_URL=https://api.openai.com/v1 MODEL_NAME=gpt-4o-mini HF_TOKEN=sk-... python inference.py
+API_BASE_URL=https://api.openai.com/v1 \
+MODEL_NAME=gpt-4o-mini \
+HF_TOKEN=sk-... \
+ENV_BASE_URL=http://localhost:7860 \
+python inference.py
 ```
 
 ### Docker
@@ -156,9 +151,20 @@ curl http://localhost:7860/health
 ### API Examples
 
 ```bash
-curl -X POST http://localhost:7860/reset -H "Content-Type: application/json" -d '{"task_id": "single_point_failure"}'
-curl -X POST http://localhost:7860/step -H "Content-Type: application/json" -d '{"action_type": "inspect_node", "target_node": "node_cluster_manager"}'
-curl -X POST http://localhost:7860/step -H "Content-Type: application/json" -d '{"action_type": "submit_diagnosis", "diagnosis": {"root_cause_nodes": ["node_cluster_manager"], "failure_type": "resource_misconfiguration"}}'
+# Reset environment
+curl -X POST http://localhost:7860/reset \
+  -H "Content-Type: application/json" \
+  -d '{"task_id": "single_point_failure"}'
+
+# Inspect a node
+curl -X POST http://localhost:7860/step \
+  -H "Content-Type: application/json" \
+  -d '{"action_type": "inspect_node", "target_node": "node_cluster_manager"}'
+
+# Submit diagnosis
+curl -X POST http://localhost:7860/step \
+  -H "Content-Type: application/json" \
+  -d '{"action_type": "submit_diagnosis", "diagnosis": {"root_cause_nodes": ["node_cluster_manager"], "failure_type": "resource_misconfiguration"}}'
 ```
 
 ---
