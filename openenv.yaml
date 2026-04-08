@@ -1,0 +1,133 @@
+name: graph-rca-pipeline-diagnoser
+version: 1.0.0
+description: >
+  RL environment for diagnosing root causes in failing data pipelines.
+  An AI agent traverses a Directed Acyclic Graph (DAG) of pipeline nodes,
+  inspects logs, and identifies the root cause(s) of production incidents.
+  Built on 200 real annotated production incidents from companies including
+  Cloudflare, AWS, GitHub, Google, Allegro, Railway, and more.
+
+tags:
+  - openenv
+  - data-engineering
+  - root-cause-analysis
+  - site-reliability
+  - graph-traversal
+  - production-incidents
+
+author: GraphRCA Team
+license: MIT
+
+observation_space:
+  type: structured
+  description: >
+    Pipeline DAG topology with node statuses, inspected logs, metrics,
+    and episode progress information.
+  fields:
+    - name: task_id
+      type: string
+      description: Current task identifier
+    - name: difficulty
+      type: string
+      enum: [easy, medium, hard]
+    - name: nodes
+      type: array
+      description: All pipeline nodes with status and error flags
+    - name: edges
+      type: array
+      description: DAG edges as from/to pairs
+    - name: inspected_node
+      type: string
+      nullable: true
+      description: Node currently being inspected
+    - name: inspected_logs
+      type: array
+      description: Log entries from inspected node
+    - name: metrics
+      type: object
+      nullable: true
+      description: Pipeline performance metrics
+    - name: current_step
+      type: integer
+    - name: max_steps
+      type: integer
+    - name: steps_remaining
+      type: integer
+    - name: nodes_inspected
+      type: array
+      description: All nodes inspected so far
+
+action_space:
+  type: structured
+  description: >
+    Agent actions for exploring the pipeline DAG and submitting diagnoses.
+  actions:
+    - name: list_nodes
+      description: List all nodes in the DAG with status
+    - name: inspect_node
+      description: Inspect logs of a specific node
+      params:
+        - name: target_node
+          type: string
+          required: true
+    - name: traverse_edge
+      description: Show edges connected to a node
+      params:
+        - name: target_node
+          type: string
+          required: true
+    - name: get_metrics
+      description: Retrieve pipeline performance metrics
+    - name: submit_diagnosis
+      description: Submit root cause diagnosis to end episode (alias: diagnose)
+      params:
+        - name: diagnosis
+          type: object
+          required: true
+          description: "Object with root_cause_nodes (array) and failure_type (string)"
+
+reward:
+  type: float
+  range: [0.0, 1.0]
+  description: >
+    Dense reward signal throughout episode.
+    Final score = (F1_score * 0.80) + (efficiency_bonus * 0.20).
+    Small exploration rewards for inspecting root cause nodes.
+    Efficiency bonus for solving in fewer steps.
+
+tasks:
+  - id: single_point_failure
+    difficulty: easy
+    max_steps: 10
+    description: >
+      Single node failure with explicit CRITICAL error in logs.
+      Root cause is the failing node itself — directly observable.
+    source: Allegro production incident (2018-07-18)
+
+  - id: cascading_failure
+    difficulty: medium
+    max_steps: 15
+    description: >
+      WAF regex deployment caused cascading CPU exhaustion across edge routers.
+      Visible symptoms are at leaf nodes; root cause is the upstream deployment.
+      Agent must trace the causal chain backward.
+    source: Cloudflare WAF outage (2019-07-02)
+
+  - id: simultaneous_failures
+    difficulty: hard
+    max_steps: 20
+    description: >
+      Two simultaneous failures: BGP configuration typo + monitoring alert suppression.
+      Agent must identify BOTH root cause nodes — one active failure, one passive blind spot.
+    source: Cloudflare BGP incident (2020-07-17)
+
+baseline_scores:
+  single_point_failure: 0.82
+  cascading_failure: 0.65
+  simultaneous_failures: 0.41
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  health: GET /health

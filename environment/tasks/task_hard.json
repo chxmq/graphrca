@@ -1,0 +1,107 @@
+{
+  "task_id": "simultaneous_failures",
+  "difficulty": "hard",
+  "description": "Two simultaneous silent failures in the BGP routing infrastructure. A configuration typo during maintenance caused a cascade, but there's also a monitoring blind spot that delayed detection. Agent must identify BOTH root causes and distinguish the primary trigger from secondary contributing factor.",
+  "incident_ref": "incident_003",
+  "dag_structure": {
+    "nodes": [
+      {"id": "node_network_ops", "label": "network-ops", "type": "human"},
+      {"id": "node_bgp_atl", "label": "bgp-atlanta", "type": "network"},
+      {"id": "node_bgp_svc", "label": "bgp-service", "type": "service"},
+      {"id": "node_route_monitor", "label": "route-monitor", "type": "monitoring"},
+      {"id": "node_network_core", "label": "network-core", "type": "network"},
+      {"id": "node_alerting", "label": "incident-alert", "type": "alerting"},
+      {"id": "node_traffic_mon", "label": "traffic-monitor", "type": "monitoring"},
+      {"id": "node_pop_eu", "label": "pop-eu", "type": "network"},
+      {"id": "node_pop_ap", "label": "pop-ap", "type": "network"},
+      {"id": "node_ops_response", "label": "ops-response", "type": "human"}
+    ],
+    "edges": [
+      {"from": "node_network_ops", "to": "node_bgp_atl"},
+      {"from": "node_bgp_atl", "to": "node_bgp_svc"},
+      {"from": "node_bgp_svc", "to": "node_route_monitor"},
+      {"from": "node_bgp_svc", "to": "node_network_core"},
+      {"from": "node_network_core", "to": "node_pop_eu"},
+      {"from": "node_network_core", "to": "node_pop_ap"},
+      {"from": "node_network_core", "to": "node_alerting"},
+      {"from": "node_route_monitor", "to": "node_alerting"},
+      {"from": "node_alerting", "to": "node_traffic_mon"},
+      {"from": "node_traffic_mon", "to": "node_ops_response"}
+    ]
+  },
+  "node_logs": {
+    "node_network_ops": [
+      {"timestamp": "2020-07-17T21:10:00Z", "level": "INFO", "message": "Initiating maintenance on Atlanta router ATL-01"},
+      {"timestamp": "2020-07-17T21:11:00Z", "level": "INFO", "message": "Preparing prefix-list update for router ATL-01"},
+      {"timestamp": "2020-07-17T21:12:00Z", "level": "WARNING", "message": "Configuration command executed - deactivating prefix-list on ATL-01"}
+    ],
+    "node_bgp_atl": [
+      {"timestamp": "2020-07-17T21:12:15Z", "level": "ERROR", "message": "Configuration typo detected - deactivated prefix-list instead of term"},
+      {"timestamp": "2020-07-17T21:12:30Z", "level": "CRITICAL", "message": "All BGP routes leaked with high local-preference from ATL-01"}
+    ],
+    "node_bgp_svc": [
+      {"timestamp": "2020-07-17T21:12:45Z", "level": "ERROR", "message": "Unexpected BGP route propagation - 50000+ routes announced with incorrect metrics"},
+      {"timestamp": "2020-07-17T21:16:00Z", "level": "INFO", "message": "Prefix-list reactivated - BGP announcements withdrawing"}
+    ],
+    "node_route_monitor": [
+      {"timestamp": "2020-07-17T21:09:00Z", "level": "WARNING", "message": "Route monitoring threshold alerts suppressed - maintenance window active"},
+      {"timestamp": "2020-07-17T21:12:45Z", "level": "WARNING", "message": "BGP route count anomaly detected but alert suppressed due to maintenance flag"}
+    ],
+    "node_network_core": [
+      {"timestamp": "2020-07-17T21:13:00Z", "level": "CRITICAL", "message": "Global BGP table corruption - traffic blackholed"},
+      {"timestamp": "2020-07-17T21:18:00Z", "level": "INFO", "message": "BGP table converging - traffic recovery in progress"}
+    ],
+    "node_pop_eu": [
+      {"timestamp": "2020-07-17T21:13:30Z", "level": "ERROR", "message": "EU PoP reporting connectivity loss - BGP routes withdrawn"}
+    ],
+    "node_pop_ap": [
+      {"timestamp": "2020-07-17T21:13:30Z", "level": "ERROR", "message": "AP PoP reporting connectivity loss - traffic dropped"}
+    ],
+    "node_alerting": [
+      {"timestamp": "2020-07-17T21:13:30Z", "level": "WARNING", "message": "Multiple PoPs reporting connectivity loss"}
+    ],
+    "node_traffic_mon": [
+      {"timestamp": "2020-07-17T21:14:00Z", "level": "ERROR", "message": "78% traffic drop detected across all regions"},
+      {"timestamp": "2020-07-17T21:14:30Z", "level": "CRITICAL", "message": "Global traffic outage confirmed - SLA breach imminent"}
+    ],
+    "node_ops_response": [
+      {"timestamp": "2020-07-17T21:15:00Z", "level": "INFO", "message": "Emergency rollback initiated on ATL-01 router"}
+    ]
+  },
+  "node_status": {
+    "node_network_ops": "HEALTHY",
+    "node_bgp_atl": "FAILED",
+    "node_bgp_svc": "DEGRADED",
+    "node_route_monitor": "DEGRADED",
+    "node_network_core": "FAILED",
+    "node_pop_eu": "FAILED",
+    "node_pop_ap": "FAILED",
+    "node_alerting": "HEALTHY",
+    "node_traffic_mon": "HEALTHY",
+    "node_ops_response": "HEALTHY"
+  },
+  "data_samples": {
+    "network_metrics": {
+      "bgp_routes_leaked": 50000,
+      "traffic_drop_pct": 78,
+      "pops_affected": 14,
+      "time_to_detect_minutes": 2,
+      "time_to_resolve_minutes": 8,
+      "maintenance_window_active": true,
+      "alert_suppression_active": true
+    }
+  },
+  "ground_truth": {
+    "root_cause_nodes": ["node_bgp_atl", "node_route_monitor"],
+    "failure_type": "configuration_error_with_monitoring_blind_spot",
+    "root_cause_description": "Primary: Configuration typo in Atlanta router (deactivating prefix-list instead of term) leaked 50,000+ BGP routes. Secondary: Monitoring alert suppression during maintenance window delayed detection by ~2 minutes.",
+    "keywords": ["bgp", "prefix-list", "configuration typo", "route leak", "maintenance window", "alert suppression", "monitoring"]
+  },
+  "max_steps": 20,
+  "hints": [
+    "There are TWO root cause nodes - find both",
+    "One failure is active (causes the outage), one is passive (prevents detection)",
+    "Check the monitoring node carefully - why did alerts not fire immediately?",
+    "The maintenance window flag is relevant to the failure cascade"
+  ]
+}

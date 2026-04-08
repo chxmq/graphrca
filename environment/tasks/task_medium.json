@@ -1,0 +1,85 @@
+{
+  "task_id": "cascading_failure",
+  "difficulty": "medium",
+  "description": "A WAF regex deployment caused cascading CPU exhaustion across edge routers. The visible symptoms are at leaf nodes but the root cause is an upstream deployment decision. Agent must trace back through the causal chain.",
+  "incident_ref": "incident_002",
+  "dag_structure": {
+    "nodes": [
+      {"id": "node_waf_deploy", "label": "waf-deployment", "type": "deployment"},
+      {"id": "node_edge_001", "label": "edge-router-001", "type": "network"},
+      {"id": "node_edge_002", "label": "edge-router-002", "type": "network"},
+      {"id": "node_edge_003", "label": "edge-router-003", "type": "network"},
+      {"id": "node_lb", "label": "load-balancer", "type": "network"},
+      {"id": "node_incident", "label": "incident-response", "type": "alerting"},
+      {"id": "node_ops", "label": "ops-team", "type": "human"}
+    ],
+    "edges": [
+      {"from": "node_waf_deploy", "to": "node_edge_001"},
+      {"from": "node_waf_deploy", "to": "node_edge_002"},
+      {"from": "node_waf_deploy", "to": "node_edge_003"},
+      {"from": "node_edge_001", "to": "node_lb"},
+      {"from": "node_edge_002", "to": "node_lb"},
+      {"from": "node_edge_003", "to": "node_lb"},
+      {"from": "node_lb", "to": "node_incident"},
+      {"from": "node_incident", "to": "node_ops"}
+    ]
+  },
+  "node_logs": {
+    "node_waf_deploy": [
+      {"timestamp": "2019-07-02T13:40:00Z", "level": "INFO", "message": "Deploying new WAF rule update to edge routers"},
+      {"timestamp": "2019-07-02T13:41:00Z", "level": "INFO", "message": "WAF rule deployment completed across all edge locations"},
+      {"timestamp": "2019-07-02T13:42:30Z", "level": "CRITICAL", "message": "Catastrophic backtracking detected in regex pattern .*(?:.*=.*)*"}
+    ],
+    "node_edge_001": [
+      {"timestamp": "2019-07-02T13:42:00Z", "level": "WARNING", "message": "High CPU utilization detected - 89%"},
+      {"timestamp": "2019-07-02T13:42:15Z", "level": "ERROR", "message": "CPU exhaustion - regex processing taking excessive time"},
+      {"timestamp": "2019-07-02T13:46:00Z", "level": "INFO", "message": "WAF rule rollback completed - CPU normalizing"}
+    ],
+    "node_edge_002": [
+      {"timestamp": "2019-07-02T13:42:45Z", "level": "ERROR", "message": "CPU at 100% - WAF rule regex causing infinite loop"}
+    ],
+    "node_edge_003": [
+      {"timestamp": "2019-07-02T13:43:30Z", "level": "ERROR", "message": "WAF regex evaluation timeout exceeded"}
+    ],
+    "node_lb": [
+      {"timestamp": "2019-07-02T13:43:00Z", "level": "CRITICAL", "message": "Multiple edge routers unresponsive - activating failover"}
+    ],
+    "node_incident": [
+      {"timestamp": "2019-07-02T13:44:00Z", "level": "WARNING", "message": "Global traffic impact detected - 50% of requests failing"}
+    ],
+    "node_ops": [
+      {"timestamp": "2019-07-02T13:45:00Z", "level": "INFO", "message": "Initiating WAF rule rollback on all edge routers"},
+      {"timestamp": "2019-07-02T13:47:00Z", "level": "INFO", "message": "Edge router fleet recovering - traffic resuming"}
+    ]
+  },
+  "node_status": {
+    "node_waf_deploy": "FAILED",
+    "node_edge_001": "DEGRADED",
+    "node_edge_002": "FAILED",
+    "node_edge_003": "FAILED",
+    "node_lb": "DEGRADED",
+    "node_incident": "HEALTHY",
+    "node_ops": "HEALTHY"
+  },
+  "data_samples": {
+    "traffic_metrics": {
+      "requests_failing_pct": 50,
+      "edge_routers_unresponsive": 2,
+      "avg_cpu_pct": 97,
+      "waf_rule_version": "2019.07.02-hotfix-3",
+      "deployment_time": "2019-07-02T13:40:00Z"
+    }
+  },
+  "ground_truth": {
+    "root_cause_nodes": ["node_waf_deploy"],
+    "failure_type": "bad_deployment",
+    "root_cause_description": "A poorly written regular expression in WAF rule caused CPU exhaustion via catastrophic backtracking on all edge routers.",
+    "keywords": ["regex", "waf", "backtracking", "cpu exhaustion", "deployment", "edge router"]
+  },
+  "max_steps": 15,
+  "hints": [
+    "Multiple nodes are failing - find the common upstream cause",
+    "The visible errors (CPU exhaustion) are symptoms, not root causes",
+    "Trace the failure backward through the dependency chain"
+  ]
+}

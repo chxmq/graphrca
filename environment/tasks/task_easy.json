@@ -1,0 +1,79 @@
+{
+  "task_id": "single_point_failure",
+  "difficulty": "easy",
+  "description": "A single node in the pipeline has failed with an explicit error in the logs. The root cause is visible and directly stated.",
+  "incident_ref": "incident_001",
+  "dag_structure": {
+    "nodes": [
+      {"id": "node_cluster_manager", "label": "cluster-manager", "type": "service"},
+      {"id": "node_monitoring", "label": "monitoring-svc", "type": "monitoring"},
+      {"id": "node_autoscaler", "label": "autoscaler", "type": "service"},
+      {"id": "node_deployer", "label": "service-deployer", "type": "service"},
+      {"id": "node_alert", "label": "incident-alert", "type": "alerting"},
+      {"id": "node_ops", "label": "ops-team", "type": "human"}
+    ],
+    "edges": [
+      {"from": "node_cluster_manager", "to": "node_monitoring"},
+      {"from": "node_cluster_manager", "to": "node_autoscaler"},
+      {"from": "node_autoscaler", "to": "node_deployer"},
+      {"from": "node_deployer", "to": "node_alert"},
+      {"from": "node_alert", "to": "node_ops"}
+    ]
+  },
+  "node_logs": {
+    "node_cluster_manager": [
+      {"timestamp": "2018-07-18T11:50:00Z", "level": "INFO", "message": "Starting scheduled capacity check for production cluster"},
+      {"timestamp": "2018-07-18T11:51:30Z", "level": "WARNING", "message": "High resource reservation detected - services requesting 95% of cluster capacity"},
+      {"timestamp": "2018-07-18T11:53:00Z", "level": "ERROR", "message": "Unable to schedule new service instance - insufficient resources"},
+      {"timestamp": "2018-07-18T11:54:00Z", "level": "ERROR", "message": "Resource allocation mismatch detected - reserved > actual usage by 340%"},
+      {"timestamp": "2018-07-18T11:55:00Z", "level": "CRITICAL", "message": "Misconfiguration detected in resource management - services reserving excessive CPU/RAM"}
+    ],
+    "node_monitoring": [
+      {"timestamp": "2018-07-18T11:52:00Z", "level": "INFO", "message": "CPU allocation ratio: 87%, Memory allocation ratio: 92%"}
+    ],
+    "node_autoscaler": [
+      {"timestamp": "2018-07-18T11:53:30Z", "level": "WARNING", "message": "Scaling event blocked due to resource constraints"}
+    ],
+    "node_deployer": [
+      {"timestamp": "2018-07-18T11:55:30Z", "level": "ERROR", "message": "New instance deployment failed - no available capacity despite 45% physical resources free"}
+    ],
+    "node_alert": [
+      {"timestamp": "2018-07-18T11:56:00Z", "level": "WARNING", "message": "Service degradation detected - multiple deployment failures"}
+    ],
+    "node_ops": [
+      {"timestamp": "2018-07-18T11:57:00Z", "level": "INFO", "message": "Investigating cluster resource allocation issue"},
+      {"timestamp": "2018-07-18T11:58:00Z", "level": "ERROR", "message": "Resource quota configuration error confirmed - services over-reserving resources"},
+      {"timestamp": "2018-07-18T12:00:00Z", "level": "INFO", "message": "Applying resource quota fix to cluster configuration"}
+    ]
+  },
+  "node_status": {
+    "node_cluster_manager": "FAILED",
+    "node_monitoring": "HEALTHY",
+    "node_autoscaler": "DEGRADED",
+    "node_deployer": "FAILED",
+    "node_alert": "HEALTHY",
+    "node_ops": "HEALTHY"
+  },
+  "data_samples": {
+    "cluster_metrics": {
+      "cpu_reserved_pct": 87,
+      "memory_reserved_pct": 92,
+      "physical_cpu_used_pct": 26,
+      "physical_memory_used_pct": 27,
+      "pending_deployments": 14,
+      "failed_deployments_last_hour": 14
+    }
+  },
+  "ground_truth": {
+    "root_cause_nodes": ["node_cluster_manager"],
+    "failure_type": "misconfiguration",
+    "root_cause_description": "Misconfiguration in cluster resource management caused services to reserve excessive resources (CPU/RAM) they didn't use, preventing new instances from starting despite available physical capacity.",
+    "keywords": ["misconfiguration", "resource reservation", "cpu", "memory", "cluster-manager", "quota"]
+  },
+  "max_steps": 10,
+  "hints": [
+    "Look at nodes with CRITICAL log entries first",
+    "Check which node has the earliest ERROR-level log",
+    "The root cause node has FAILED status and explicit CRITICAL message"
+  ]
+}
