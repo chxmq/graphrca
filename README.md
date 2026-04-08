@@ -1,7 +1,17 @@
+---
+title: Graph RCA Pipeline Diagnoser
+emoji: 🔍
+colorFrom: red
+colorTo: blue
+sdk: docker
+pinned: false
+tags:
+  - openenv
+  - data-engineering
+  - root-cause-analysis
+---
 
 # Graph-RCA Pipeline Diagnoser
-
-**Live Demo:** https://huggingface.co/spaces/chxmq/graph-rca-pipeline-diagnoser
 
 An OpenEnv reinforcement learning environment where an AI agent diagnoses root causes in failing production data pipelines by traversing a DAG, inspecting logs, and identifying what broke and why.
 
