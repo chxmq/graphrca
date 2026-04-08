@@ -221,11 +221,11 @@ def grade_step_reward(
     Provides a small positive reward when the agent inspects root cause nodes,
     and a tiny negative penalty for wasting steps.
 
-    Returns a float reward in range [-0.02, 0.1].
+    Returns a float reward in range [0.0, 0.1].
     """
     exploration = compute_exploration_reward(nodes_inspected, root_cause_nodes, total_nodes)
 
-    # Small step penalty to discourage random wandering
+    # Small step penalty to discourage random wandering (clamped to keep reward >= 0)
     step_penalty = -0.01 * (steps_used / max_steps)
 
-    return round(max(-0.05, exploration + step_penalty), 4)
+    return round(max(0.0, exploration + step_penalty), 4)

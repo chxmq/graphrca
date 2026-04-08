@@ -126,10 +126,10 @@ Scores are always in **[0.0, 1.0]**.
 
 | Task | Score | Steps Used |
 |------|-------|-----------|
-| single_point_failure (easy) | 0.66 | 4 |
-| cascading_failure (medium) | 0.93 | 2 |
+| single_point_failure (easy) | 0.84 | 1 |
+| cascading_failure (medium) | 0.93 | 3 |
 | simultaneous_failures (hard) | 0.35 | 4 |
-| **Mean** | **0.65** | — |
+| **Mean** | **0.71** | — |
 
 ---
 

@@ -122,9 +122,9 @@ tasks:
     source: Cloudflare BGP incident (2020-07-17)
 
 baseline_scores:
-  single_point_failure: 0.82
-  cascading_failure: 0.65
-  simultaneous_failures: 0.41
+  single_point_failure: 0.84
+  cascading_failure: 0.93
+  simultaneous_failures: 0.35
 
 endpoints:
   reset: POST /reset
