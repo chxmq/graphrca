@@ -11,8 +11,8 @@ Environment variables required:
 
 Log format (strict — do not deviate):
   [START] task=<task_id> env=graph-rca-pipeline-diagnoser model=<model>
-  [STEP]  step=<n> action=<str> reward=<0.00> done=<true|false> error=<msg|null>
-  [END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...,rn>
+  [STEP] step=<n> action=<str> reward=<0.00> done=<true|false> error=<msg|null>
+  [END] success=<true|false> steps=<n> score=<0.000> rewards=<r1,r2,...,rn>
 
 Usage:
   API_BASE_URL=https://api.openai.com/v1 MODEL_NAME=gpt-4o-mini HF_TOKEN=sk-... python inference.py
@@ -61,19 +61,18 @@ def log_start(task: str, env: str, model: str) -> None:
 
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
-    done_str = "true" if done else "false"
-    error_str = "null" if error is None else error
+    error_str = error if error else "null"
+    done_str = str(done).lower()
     print(
-        f"[STEP]  step={step} action={action} reward={reward:.2f} done={done_str} error={error_str}",
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_str} error={error_str}",
         flush=True,
     )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    success_str = "true" if success else "false"
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END]   success={success_str} steps={steps} score={score:.2f} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
         flush=True,
     )
 
@@ -299,7 +298,7 @@ def run_task(
             steps_taken = step
             last_reward = reward
 
-            action_str = json.dumps(action)
+            action_str = json.dumps(action, separators=(',', ':'))
             log_step(step=step, action=action_str, reward=reward, done=done, error=error)
             history.append(f"Step {step}: {action_str} -> reward {reward:+.4f}")
 
