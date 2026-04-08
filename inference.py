@@ -305,14 +305,12 @@ def run_task(
             if done:
                 break
 
-        # Compute final score
+        # Compute final score — strictly (0, 1) exclusive as required by validator
         if rewards:
-            # Score = final reward (the diagnosis reward), clamped to [0,1]
-            # For non-diagnosed episodes, use mean reward
             final_reward = rewards[-1] if rewards else 0.0
-            score = min(max(final_reward, 0.0), 1.0)
+            score = min(max(final_reward, 0.001), 0.999)
         else:
-            score = 0.0
+            score = 0.001
 
         success = score >= SUCCESS_SCORE_THRESHOLD
 

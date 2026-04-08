@@ -170,9 +170,9 @@ def grade_diagnosis(
     # Exploration reward (always given — dense signal during episode)
     exploration = compute_exploration_reward(nodes_inspected, ground_truth_nodes, total_nodes)
 
-    # Final score formula
+    # Final score formula — clamped to strictly (0, 1) exclusive as required
     base_score = (f1 * 0.80) + (efficiency * 0.20)
-    total_score = min(1.0, base_score + keyword_bonus + exploration)
+    total_score = min(0.999, max(0.001, base_score + keyword_bonus + exploration))
 
     # Build feedback message
     if is_correct:
