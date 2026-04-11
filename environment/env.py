@@ -3,20 +3,9 @@ Graph-RCA Pipeline Diagnoser — OpenEnv Environment
 
 An RL environment where an AI agent diagnoses root causes in failing data
 pipelines by traversing a DAG of pipeline nodes and inspecting logs.
-
-Built on 200 real annotated production incidents from companies including
-Cloudflare, AWS, GitHub, Google, and more.
-
-OpenEnv API:
-  reset(task_id) -> StepResult
-  step(action)   -> StepResult
-  state()        -> dict
 """
 
-from __future__ import annotations
-
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -30,10 +19,7 @@ from environment.models import (
     PipelineReward,
 )
 
-
-# ---------------------------------------------------------------------------
-# StepResult — returned by reset() and step()
-# ---------------------------------------------------------------------------
+_ERROR_LEVELS = frozenset({"ERROR", "CRITICAL", "FATAL"})
 
 class StepResult:
     """Container for the result of a reset() or step() call."""
@@ -58,11 +44,6 @@ class StepResult:
             "info": self.info,
         }
 
-
-# ---------------------------------------------------------------------------
-# Task loader
-# ---------------------------------------------------------------------------
-
 TASKS_DIR = Path(__file__).parent / "tasks"
 
 TASK_MAP = {
@@ -73,37 +54,17 @@ TASK_MAP = {
 
 
 def _load_task(task_id: str) -> Dict[str, Any]:
-    """Load a task definition from JSON."""
     filename = TASK_MAP.get(task_id)
     if filename is None:
         raise ValueError(
             f"Unknown task_id '{task_id}'. "
             f"Available tasks: {list(TASK_MAP.keys())}"
         )
-    task_path = TASKS_DIR / filename
-    with open(task_path, "r", encoding="utf-8") as f:
+    with open(TASKS_DIR / filename, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-# ---------------------------------------------------------------------------
-# Main environment class
-# ---------------------------------------------------------------------------
-
 class GraphRCAEnv:
-    """
-    Graph-RCA Pipeline Diagnoser OpenEnv Environment.
-
-    The agent must:
-    1. Explore the pipeline DAG by inspecting node logs
-    2. Identify which node(s) are the root cause of failures
-    3. Submit a diagnosis with the root cause node IDs
-
-    Reward signal:
-    - Dense exploration rewards for inspecting relevant nodes
-    - F1-based final reward for correct root cause identification
-    - Efficiency bonus for solving quickly
-    - Small step penalty to discourage random wandering
-    """
 
     AVAILABLE_TASKS = list(TASK_MAP.keys())
 
@@ -115,25 +76,9 @@ class GraphRCAEnv:
         self._nodes_inspected: List[str] = []
         self._diagnosis_submitted: bool = False
         self._last_reward: float = 0.0
-
-        # Indexed for O(1) lookup
         self._node_lookup: Dict[str, Dict[str, Any]] = {}
 
-    # -----------------------------------------------------------------------
-    # OpenEnv API
-    # -----------------------------------------------------------------------
-
     def reset(self, task_id: Optional[str] = None) -> StepResult:
-        """
-        Reset the environment with a new task.
-
-        Args:
-            task_id: One of 'single_point_failure', 'cascading_failure',
-                     'simultaneous_failures'. Defaults to 'single_point_failure'.
-
-        Returns:
-            StepResult with initial observation, reward=0.0, done=False.
-        """
         if task_id is None:
             task_id = "single_point_failure"
 
@@ -160,15 +105,6 @@ class GraphRCAEnv:
         return StepResult(observation=obs, reward=0.0, done=False, info={"task_id": task_id})
 
     def step(self, action: PipelineAction) -> StepResult:
-        """
-        Execute one action in the environment.
-
-        Args:
-            action: PipelineAction specifying what to do.
-
-        Returns:
-            StepResult with updated observation, reward, done flag, and info.
-        """
         if self._task_data is None:
             raise RuntimeError("Call reset() before step()")
 
@@ -199,7 +135,7 @@ class GraphRCAEnv:
         elif action.action_type == ActionType.GET_METRICS:
             result_msg, reward = self._action_get_metrics()
 
-        elif action.action_type in (ActionType.DIAGNOSE, ActionType.SUBMIT_DIAGNOSIS):
+        elif action.action_type == ActionType.SUBMIT_DIAGNOSIS:
             result_msg, reward, done, info = self._action_diagnose(
                 action.diagnosis, max_steps
             )
@@ -226,11 +162,6 @@ class GraphRCAEnv:
         return StepResult(observation=obs, reward=reward, done=done, info=info)
 
     def state(self) -> Dict[str, Any]:
-        """
-        Return the current environment state as a dict.
-
-        Useful for debugging and logging.
-        """
         if self._task_data is None:
             return {"status": "not_initialized"}
 
@@ -247,12 +178,7 @@ class GraphRCAEnv:
             "edge_count": len(self._task_data["dag_structure"]["edges"]),
         }
 
-    # -----------------------------------------------------------------------
-    # Action implementations
-    # -----------------------------------------------------------------------
-
     def _action_list_nodes(self) -> Tuple[str, float]:
-        """List all nodes with their current status."""
         nodes = self._task_data["dag_structure"]["nodes"]
         node_status = self._task_data["node_status"]
 
@@ -261,12 +187,10 @@ class GraphRCAEnv:
             nid = node["id"]
             status = node_status.get(nid, "UNKNOWN")
             logs = self._task_data["node_logs"].get(nid, [])
-            error_levels = {"ERROR", "CRITICAL", "FATAL"}
-            has_errors = any(e["level"] in error_levels for e in logs)
+            has_errors = any(e["level"] in _ERROR_LEVELS for e in logs)
             flag = " [!]" if has_errors else ""
             lines.append(f"  {nid} ({node['label']}) [{status}]{flag} — {len(logs)} logs")
 
-        # Tiny positive reward for taking an exploratory action
         reward = grade_step_reward(
             self._nodes_inspected,
             self._task_data["ground_truth"]["root_cause_nodes"],
@@ -277,7 +201,6 @@ class GraphRCAEnv:
         return "\n".join(lines), reward
 
     def _action_inspect_node(self, node_id: Optional[str]) -> Tuple[str, float]:
-        """Inspect logs of a specific node."""
         if not node_id:
             return "inspect_node requires target_node to be set.", -0.02
 
@@ -310,7 +233,6 @@ class GraphRCAEnv:
         return "\n".join(lines), reward
 
     def _action_traverse_edge(self, target_node: Optional[str]) -> Tuple[str, float]:
-        """Show edges connected to a node (neighbors)."""
         if not target_node:
             return "traverse_edge requires target_node to be set.", -0.02
 
@@ -341,7 +263,6 @@ class GraphRCAEnv:
         return "\n".join(lines), reward
 
     def _action_get_metrics(self) -> Tuple[str, float]:
-        """Return pipeline metrics and data samples."""
         metrics = self._task_data.get("data_samples", {})
         if metrics:
             lines = ["Pipeline metrics:"]
@@ -405,29 +326,22 @@ class GraphRCAEnv:
 
         return reward_obj.feedback, reward_obj.score, True, info
 
-    # -----------------------------------------------------------------------
-    # Observation builder
-    # -----------------------------------------------------------------------
-
     def _build_observation(
         self,
         last_action: Optional[str],
         last_action_result: Optional[str],
-        inspected_node: Optional[str] = None,
     ) -> PipelineObservation:
-        """Build a PipelineObservation from the current environment state."""
         if self._task_data is None:
             raise RuntimeError("No task loaded")
 
         node_status = self._task_data["node_status"]
         all_nodes = self._task_data["dag_structure"]["nodes"]
-        error_levels = {"ERROR", "CRITICAL", "FATAL"}
 
         nodes_info: List[NodeInfo] = []
         for n in all_nodes:
             nid = n["id"]
             logs = self._task_data["node_logs"].get(nid, [])
-            has_errors = any(e["level"] in error_levels for e in logs)
+            has_errors = any(e["level"] in _ERROR_LEVELS for e in logs)
             nodes_info.append(NodeInfo(
                 node_id=nid,
                 label=n["label"],

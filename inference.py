@@ -44,9 +44,9 @@ MAX_TOKENS: int = 512
 
 # Task configs
 TASKS = [
-    {"task_id": "single_point_failure", "max_steps": 10, "max_total_reward": 1.0},
-    {"task_id": "cascading_failure", "max_steps": 15, "max_total_reward": 1.0},
-    {"task_id": "simultaneous_failures", "max_steps": 20, "max_total_reward": 1.0},
+    {"task_id": "single_point_failure", "max_steps": 10},
+    {"task_id": "cascading_failure", "max_steps": 15},
+    {"task_id": "simultaneous_failures", "max_steps": 20},
 ]
 
 SUCCESS_SCORE_THRESHOLD = 0.5
@@ -138,9 +138,9 @@ def build_user_prompt(
 
     urgency = ""
     if steps_remaining <= 2:
-        urgency = f"\n⚠️ URGENT: Only {steps_remaining} steps left! You MUST submit a diagnosis NOW or score 0. Use action_type=submit_diagnosis immediately!\n"
+        urgency = f"\nWARNING: {steps_remaining} steps left. Submit diagnosis now.\n"
     elif steps_remaining <= 4:
-        urgency = f"\n⚠️ WARNING: Only {steps_remaining} steps remaining. Submit diagnosis soon or you will timeout with score 0!\n"
+        urgency = f"\nWARNING: {steps_remaining} steps remaining. Submit diagnosis soon.\n"
 
     context = f"""Task: {task_id} (difficulty: {difficulty})
 Step: {step} | Steps remaining: {steps_remaining}
@@ -185,7 +185,6 @@ def get_model_action(
             ],
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
-            stream=False,
         )
         text = (completion.choices[0].message.content or "").strip()
 
@@ -253,7 +252,6 @@ def run_task(
     """Run the agent on a single task. Returns task results."""
     task_id = task_config["task_id"]
     max_steps = task_config["max_steps"]
-    max_total_reward = task_config["max_total_reward"]
 
     rewards: List[float] = []
     history: List[str] = []

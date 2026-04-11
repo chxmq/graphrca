@@ -1,51 +1,13 @@
 """
 Deterministic grader for the Graph-RCA Pipeline Diagnoser environment.
 
-Scores agent diagnoses against ground truth root cause nodes.
-All scoring is purely deterministic — no randomness, no LLM calls.
-
 Score formula:
   final_score = (f1_score * 0.80) + (efficiency_bonus * 0.20)
-
-where:
-  f1_score  = harmonic mean of precision and recall over predicted vs true root cause nodes
-  efficiency_bonus = reward for fewer steps used (normalized to max_steps)
 """
 
-from __future__ import annotations
-
-import re
 from typing import List, Set, Tuple
 
 from environment.models import PipelineReward
-
-
-def parse_diagnosis(diagnosis: str) -> Tuple[List[str], str]:
-    """
-    Parse agent's diagnosis string into node IDs and explanation.
-
-    Accepts formats:
-      "node_id1"
-      "node_id1, node_id2"
-      "node_id1 | explanation text"
-      "node_id1, node_id2 | explanation"
-
-    Returns:
-        (list_of_node_ids, explanation_text)
-    """
-    if "|" in diagnosis:
-        nodes_part, explanation = diagnosis.split("|", 1)
-    else:
-        nodes_part = diagnosis
-        explanation = ""
-
-    # Extract node IDs: split by comma or space, filter to valid node_* patterns
-    raw = [t.strip() for t in re.split(r"[,\s]+", nodes_part.strip()) if t.strip()]
-
-    # Accept any token that starts with "node_" or looks like a valid identifier
-    node_ids = [t for t in raw if t]
-
-    return node_ids, explanation.strip()
 
 
 def compute_f1(predicted: Set[str], ground_truth: Set[str]) -> Tuple[float, float, float]:

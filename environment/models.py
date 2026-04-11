@@ -1,13 +1,4 @@
-"""
-OpenEnv typed models for the Graph-RCA Pipeline Diagnoser environment.
-
-Implements the full OpenEnv spec with Pydantic v2 models for:
-- Observation: what the agent sees
-- Action: what the agent can do
-- Reward: how the agent is scored
-"""
-
-from __future__ import annotations
+"""OpenEnv typed models for the Graph-RCA Pipeline Diagnoser environment."""
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -20,12 +11,11 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 
 class ActionType(str, Enum):
-    INSPECT_NODE = "inspect_node"          # Inspect logs of a specific node
-    TRAVERSE_EDGE = "traverse_edge"        # Follow an edge to adjacent node
-    DIAGNOSE = "diagnose"                  # Submit root cause diagnosis
-    SUBMIT_DIAGNOSIS = "submit_diagnosis"  # Alias for diagnose
-    LIST_NODES = "list_nodes"             # List all nodes in the DAG
-    GET_METRICS = "get_metrics"           # Get pipeline metrics/data samples
+    INSPECT_NODE = "inspect_node"
+    TRAVERSE_EDGE = "traverse_edge"
+    SUBMIT_DIAGNOSIS = "submit_diagnosis"
+    LIST_NODES = "list_nodes"
+    GET_METRICS = "get_metrics"
 
 
 # ---------------------------------------------------------------------------

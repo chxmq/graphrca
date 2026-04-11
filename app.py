@@ -1,16 +1,4 @@
-"""
-Graph-RCA Pipeline Diagnoser — OpenEnv FastAPI Application
-
-Implements the OpenEnv HTTP API:
-  POST /reset              -> reset environment, return initial observation
-  POST /step               -> take an action, return observation + reward
-  GET  /state              -> return current state dict
-  GET  /health             -> health check (returns 200)
-  GET  /tasks              -> list available tasks
-  GET  /                   -> environment metadata
-
-Runs on port 7860 for HuggingFace Spaces compatibility.
-"""
+"""Graph-RCA Pipeline Diagnoser — OpenEnv FastAPI server."""
 
 import os
 from typing import Any, Dict, Optional
@@ -21,10 +9,6 @@ from pydantic import BaseModel
 
 from environment.env import GraphRCAEnv
 from environment.models import ActionType, DiagnosisInput, PipelineAction
-
-# ---------------------------------------------------------------------------
-# App setup
-# ---------------------------------------------------------------------------
 
 app = FastAPI(
     title="Graph-RCA Pipeline Diagnoser",
@@ -45,10 +29,6 @@ app.add_middleware(
 # Global environment instance (stateful per-server; each client should use reset())
 _env = GraphRCAEnv()
 
-# ---------------------------------------------------------------------------
-# Request / Response models
-# ---------------------------------------------------------------------------
-
 
 class ResetRequest(BaseModel):
     task_id: Optional[str] = "single_point_failure"
@@ -58,11 +38,6 @@ class StepRequest(BaseModel):
     action_type: str
     target_node: Optional[str] = None
     diagnosis: Optional[DiagnosisInput] = None
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 
 @app.get("/")
@@ -85,71 +60,6 @@ async def root() -> Dict[str, Any]:
 @app.get("/health")
 async def health() -> Dict[str, str]:
     return {"status": "healthy", "environment": "graph-rca-pipeline-diagnoser"}
-
-
-@app.get("/metadata")
-async def metadata() -> Dict[str, Any]:
-    return {
-        "name": "graph-rca-pipeline-diagnoser",
-        "description": (
-            "OpenEnv environment for diagnosing root causes in failing data pipelines. "
-            "Built on 200 real annotated production incidents using graph-based analysis."
-        ),
-        "version": "1.0.0",
-        "tasks": GraphRCAEnv.AVAILABLE_TASKS,
-    }
-
-
-@app.get("/schema")
-async def schema() -> Dict[str, Any]:
-    from environment.models import PipelineAction, PipelineObservation
-    return {
-        "action": PipelineAction.model_json_schema(),
-        "observation": PipelineObservation.model_json_schema(),
-        "state": {
-            "type": "object",
-            "properties": {
-                "task_id": {"type": "string"},
-                "difficulty": {"type": "string"},
-                "current_step": {"type": "integer"},
-                "max_steps": {"type": "integer"},
-                "done": {"type": "boolean"},
-                "nodes_inspected": {"type": "array"},
-                "diagnosis_submitted": {"type": "boolean"},
-            }
-        },
-    }
-
-
-@app.post("/mcp")
-async def mcp(request: dict) -> Dict[str, Any]:
-    """JSON-RPC 2.0 endpoint for MCP compatibility."""
-    method = request.get("method", "")
-    req_id = request.get("id", 1)
-
-    if method == "reset":
-        params = request.get("params", {})
-        result = _env.reset(task_id=params.get("task_id"))
-        return {"jsonrpc": "2.0", "id": req_id, "result": result.to_dict()}
-    elif method == "step":
-        params = request.get("params", {})
-        try:
-            action_type = ActionType(params.get("action_type", "list_nodes"))
-        except ValueError:
-            action_type = ActionType.LIST_NODES
-        raw_diagnosis = params.get("diagnosis")
-        diagnosis = DiagnosisInput(**raw_diagnosis) if isinstance(raw_diagnosis, dict) else None
-        action = PipelineAction(
-            action_type=action_type,
-            target_node=params.get("target_node"),
-            diagnosis=diagnosis,
-        )
-        result = _env.step(action)
-        return {"jsonrpc": "2.0", "id": req_id, "result": result.to_dict()}
-    elif method == "state":
-        return {"jsonrpc": "2.0", "id": req_id, "result": _env.state()}
-    else:
-        return {"jsonrpc": "2.0", "id": req_id, "result": {"status": "ok", "methods": ["reset", "step", "state"]}}
 
 
 @app.get("/tasks")

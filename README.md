@@ -21,12 +21,11 @@ An OpenEnv reinforcement learning environment where an AI agent diagnoses root c
 
 ## Why This Environment
 
-Root Cause Analysis (RCA) in production systems is one of the most high-stakes and time-sensitive tasks in software engineering. Every minute of downtime costs real money and user trust. This environment:
+RCA is what SREs actually do under pressure — trace a live failure through a system they don't fully understand, fast. This environment models that directly:
 
-- Models a task that SREs do **every day**
-- Uses **real incident data** (not toy scenarios)
-- Requires **causal reasoning** across a graph structure
-- Scales from single-node failures to complex simultaneous failure modes
+- Built on **real incident data** (not toy scenarios)
+- Requires **causal reasoning** across a graph — not just pattern matching
+- Scales from single-node failures to simultaneous multi-node failures
 
 ---
 
@@ -93,45 +92,20 @@ final_score = (F1_score x 0.80) + (efficiency_bonus x 0.20)
 - **Exploration reward**: Small dense signal for inspecting root cause nodes
 - **Step penalty**: Tiny negative reward to discourage random wandering
 
-Scores are always in **[0.0, 1.0]**.
+Scores are always in **(0.001, 0.999)**.
 
 ---
 
 ## Tasks
 
-### Task 1: `single_point_failure` (Easy)
-- **Source**: Allegro production incident (2018-07-18)
-- **Scenario**: Misconfiguration caused services to over-reserve CPU/RAM, blocking deployments
-- **Max steps**: 10
-- **Root cause**: 1 node (directly visible in CRITICAL logs)
-- **Expected score**: ~0.84
+Baseline scores measured with `gpt-4o-mini`, `temperature=0`.
 
-### Task 2: `cascading_failure` (Medium)
-- **Source**: Cloudflare WAF outage (2019-07-02)
-- **Scenario**: WAF regex with catastrophic backtracking caused CPU exhaustion across edge routers
-- **Max steps**: 15
-- **Root cause**: 1 node (upstream of visible failures)
-- **Expected score**: ~0.93
-
-### Task 3: `simultaneous_failures` (Hard)
-- **Source**: Cloudflare BGP incident (2020-07-17)
-- **Scenario**: BGP config typo + alert suppression — two simultaneous silent failures
-- **Max steps**: 20
-- **Root cause**: 2 nodes (one active failure, one monitoring blind spot)
-- **Expected score**: ~0.35
-
----
-
-## Baseline Scores
-
-Measured with `gpt-4o-mini`, `temperature=0`, reproducible across runs.
-
-| Task | Difficulty | Score | Steps Used |
-|------|------------|-------|-----------|
-| single_point_failure | easy | 0.84 | ≤5 |
-| cascading_failure | medium | 0.93 | ≤8 |
-| simultaneous_failures | hard | 0.35 | ≤12 |
-| **Mean** | — | **0.71** | — |
+| Task | Difficulty | Source | Scenario | Root Causes | Max Steps | Score (gpt-4o-mini) |
+|------|------------|--------|----------|-------------|-----------|---------------------|
+| `single_point_failure` | Easy | Allegro (2018) | CPU/RAM misconfiguration blocks deployments | 1 node — visible in CRITICAL logs | 10 | 0.84 |
+| `cascading_failure` | Medium | Cloudflare WAF (2019) | Regex backtracking causes CPU exhaustion across edge routers | 1 node — upstream of visible failures | 15 | 0.93 |
+| `simultaneous_failures` | Hard | Cloudflare BGP (2020) | BGP config typo + alert suppression fire simultaneously | 2 nodes — one active failure, one monitoring blind spot | 20 | 0.35 |
+| **Mean** | — | — | — | — | — | **0.71** |
 
 ---
 
