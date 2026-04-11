@@ -121,8 +121,8 @@ cp .env.example .env
 ### 2. Run locally
 
 ```bash
-pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 7860
+uv sync
+uv run uvicorn app:app --host 0.0.0.0 --port 7860
 ```
 
 ### 3. Run baseline inference
@@ -133,7 +133,7 @@ API_BASE_URL=https://api.openai.com/v1 \
 MODEL_NAME=gpt-4o-mini \
 HF_TOKEN=your-key-here \
 ENV_BASE_URL=http://localhost:7860 \
-python inference.py
+uv run python inference.py
 ```
 
 ### Docker
